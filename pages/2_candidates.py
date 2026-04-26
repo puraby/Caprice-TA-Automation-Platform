@@ -1,6 +1,11 @@
 import streamlit as st
 import pandas as pd
 import sys, os
+
+# Load .env BEFORE importing mock_data so APIFY_TOKEN is available at module level
+from dotenv import load_dotenv
+load_dotenv()
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from storage import load_candidates, save_candidates, load_requirements
 from mock_data import generate_candidates
@@ -12,9 +17,14 @@ STATUS_COLORS = {
     "Replied": "🟠", "Interview": "⭐", "Rejected": "🔴",
 }
 
+apify_connected = bool(os.getenv("APIFY_TOKEN"))
 
 st.title("🔍 Candidate Search & Scoring")
-st.caption("Generate mock candidates (swap Apify here later) and score them with AI.")
+
+if apify_connected:
+    st.success("🟢 Apify connected — fetching real LinkedIn profiles")
+else:
+    st.warning("🟡 Apify not connected — using mock data. Add `APIFY_TOKEN` to your `.env` file to enable real search.")
 
 reqs_df = load_requirements()
 candidates_df = load_candidates()
@@ -37,13 +47,55 @@ with st.container(border=True):
     with col2:
         st.metric("Min Exp", f"{selected_req['min_years_exp']} yrs")
 
-    if st.button("🔎 Fetch Candidates (Mock LinkedIn Search)", type="primary", use_container_width=True):
-        with st.spinner("Searching LinkedIn profiles..."):
-            new_candidates = generate_candidates(selected_req["job_title"], count=num)
-            new_candidates["job_title"] = selected_req["job_title"]
-            candidates_df = pd.concat([candidates_df, new_candidates], ignore_index=True)
-            save_candidates(candidates_df)
-        st.success(f"✅ Found {num} candidates for **{selected_req['job_title']}**")
+    btn_label = "🔎 Search Real LinkedIn Profiles (Apify)" if apify_connected else "🔎 Fetch Mock Candidates"
+
+    if st.button(btn_label, type="primary", use_container_width=True):
+        location = str(selected_req.get("location", ""))
+
+        # --- Debug panel ---
+        debug = st.expander("🛠️ Debug log", expanded=True)
+        debug.write(f"**Job title:** {selected_req['job_title']}")
+        debug.write(f"**Location:** {location or 'Not set'}")
+        debug.write(f"**Count:** {num}")
+        debug.write(f"**Apify token found:** {bool(os.getenv('APIFY_TOKEN'))}")
+        debug.write(f"**USE_REAL_APIFY:** {apify_connected}")
+
+        with st.spinner("Searching LinkedIn profiles... this may take 30-60 seconds for real data"):
+            try:
+                import mock_data as md
+                debug.write(f"**USE_REAL_APIFY in module:** {md.USE_REAL_APIFY}")
+
+                if apify_connected:
+                    debug.write("▶️ Calling Apify actor...")
+
+                new_candidates = generate_candidates(
+                    selected_req["job_title"],
+                    count=num,
+                    location=location,
+                )
+                debug.write(f"✅ Got **{len(new_candidates)}** candidates back")
+                debug.write(f"**Sample name:** {new_candidates.iloc[0]['name'] if len(new_candidates) > 0 else 'none'}")
+                debug.write(f"**Sample LinkedIn URL:** {new_candidates.iloc[0]['linkedin_url'] if len(new_candidates) > 0 else 'none'}")
+
+                # If URL is a fake faker URL, it's mock data
+                sample_url = str(new_candidates.iloc[0]["linkedin_url"]) if len(new_candidates) > 0 else ""
+                if "linkedin.com/in/" in sample_url and len(sample_url) < 50:
+                    debug.warning("⚠️ URLs look like mock data (short/fake). Apify may have fallen back.")
+                else:
+                    debug.success("✅ URLs look real!")
+
+                new_candidates["job_title"] = selected_req["job_title"]
+                candidates_df = pd.concat([candidates_df, new_candidates], ignore_index=True)
+                save_candidates(candidates_df)
+                source = "real LinkedIn" if apify_connected else "mock"
+                st.success(f"Found {len(new_candidates)} {source} candidates for **{selected_req['job_title']}**")
+
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
+                debug.error(f"Full error: {e}")
+                import traceback
+                debug.code(traceback.format_exc())
+
         st.rerun()
 
 st.divider()
@@ -72,11 +124,30 @@ if min_score > 0:
 
 # --- Bulk AI scoring ---
 unscored = filtered[filtered["ai_score"].isna()]
-col_a, col_b, col_c = st.columns(3)
+col_a, col_b, col_c, col_d = st.columns(4)
 col_a.metric("Total Candidates", len(filtered))
 col_b.metric("Unscored", len(unscored))
 scored = filtered[filtered["ai_score"].notna()]
 col_c.metric("Avg Score", f"{pd.to_numeric(scored['ai_score'], errors='coerce').mean():.0f}" if not scored.empty else "—")
+
+with col_d:
+    if st.button("🗑️ Clear All Candidates", use_container_width=True):
+        st.session_state["confirm_clear"] = True
+
+if st.session_state.get("confirm_clear"):
+    st.warning("⚠️ This will delete ALL candidates from the CSV. Are you sure?")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("✅ Yes, delete all", type="primary", use_container_width=True):
+            empty_df = pd.DataFrame(columns=candidates_df.columns)
+            save_candidates(empty_df)
+            st.session_state["confirm_clear"] = False
+            st.success("All candidates cleared!")
+            st.rerun()
+    with c2:
+        if st.button("❌ Cancel", use_container_width=True):
+            st.session_state["confirm_clear"] = False
+            st.rerun()
 
 if not unscored.empty:
     if st.button(f"🤖 AI Score All {len(unscored)} Unscored Candidates", use_container_width=True):

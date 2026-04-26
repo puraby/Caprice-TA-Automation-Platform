@@ -47,10 +47,10 @@ with st.container(border=True):
 
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("📋 Copy to Clipboard (manual send)", use_container_width=True):
+                if st.button("📋 Copy to Clipboard (manual send)", width='stretch'):
                     st.toast("Message ready — copy it manually from the box above!", icon="📋")
             with col2:
-                if st.button("✅ Mark as Sent", type="primary", use_container_width=True):
+                if st.button("✅ Mark as Sent", type="primary", width='stretch'):
                     cand = st.session_state["message_candidate"]
                     new_row = pd.DataFrame([{
                         "candidate_name": cand["name"],

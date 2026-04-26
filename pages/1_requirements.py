@@ -23,7 +23,6 @@ SKILL_PRESETS = {
     "Backend Developer": "Python, REST APIs, PostgreSQL, Docker, Microservices",
 }
 
-
 st.title("📋 Job Requirements")
 st.caption("Define what you're looking for — the system will search and score candidates automatically.")
 
@@ -44,10 +43,17 @@ with st.form("req_form", clear_on_submit=True):
         location = st.text_input("Location", placeholder="e.g. Melbourne, VIC or Remote")
 
     default_skills = SKILL_PRESETS.get(job_title, "")
-    required_skills = st.text_area(
-        "Required Skills (comma separated)",
+    
+    # --- NEW: Split into Mandatory and Desirable text areas ---
+    mandatory_skills = st.text_area(
+        "Mandatory Skills (Must have, comma separated)",
         value=default_skills,
-        height=80,
+        height=60,
+    )
+    desirable_skills = st.text_area(
+        "Desirable Skills (Nice to have, comma separated)",
+        placeholder="e.g. Airflow, Terraform, Management experience...",
+        height=60,
     )
 
     col3, col4 = st.columns(2)
@@ -58,13 +64,14 @@ with st.form("req_form", clear_on_submit=True):
 
     notes = st.text_area("Additional Notes", placeholder="e.g. Must have fintech experience, open to contractors...", height=60)
 
-    submitted = st.form_submit_button("➕ Add Requirement", use_container_width=True, type="primary")
+    submitted = st.form_submit_button("➕ Add Requirement", width='stretch', type="primary")
 
     if submitted and job_title:
         new_row = pd.DataFrame([{
             "id": str(uuid.uuid4())[:8],
             "job_title": job_title,
-            "required_skills": required_skills,
+            "mandatory_skills": mandatory_skills,   # Save mandatory
+            "desirable_skills": desirable_skills,   # Save desirable
             "min_years_exp": min_years,
             "location": location,
             "num_candidates": num_candidates,
@@ -91,8 +98,14 @@ for _, row in reqs_df.iterrows():
         c1.metric("Min Experience", f"{row['min_years_exp']} yrs")
         c2.metric("Candidates Needed", row['num_candidates'])
         c3.metric("Status", row.get("status", "Pending"))
-        st.markdown(f"**Required Skills:** {row['required_skills']}")
-        if row.get("notes"):
+        
+        # --- NEW: Display the split skills safely (fallback for older saved data) ---
+        saved_mandatory = row.get('mandatory_skills', row.get('required_skills', 'N/A'))
+        st.markdown(f"**Mandatory Skills:** {saved_mandatory}")
+        if pd.notna(row.get('desirable_skills')) and str(row.get('desirable_skills')).strip():
+            st.markdown(f"**Desirable Skills:** {row['desirable_skills']}")
+            
+        if row.get("notes") and pd.notna(row.get("notes")):
             st.markdown(f"**Notes:** {row['notes']}")
         st.caption(f"Created: {row.get('created_at', 'N/A')} · ID: {row['id']}")
 

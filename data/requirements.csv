@@ -1,4 +1,2 @@
 id,job_title,required_skills,min_years_exp,location,num_candidates,status,created_at,notes
 7df9310a,AWS Data Engineer,"AWS, S3, Glue, Redshift, Python, Spark, SQL, Airflow",4,Melbourn,5,Pending,2026-04-26 18:35,
-923e30ce,AWS Data Engineer,"AWS, S3, Glue, Redshift, Python, Spark, SQL, Airflow",4,,15,Pending,2026-04-26 18:54,
-1412a38c,AWS Data Engineer,"AWS, S3, Glue, Redshift, Python, Spark, SQL, Airflow",4,,20,Pending,2026-04-26 18:55,

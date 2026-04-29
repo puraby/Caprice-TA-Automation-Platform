@@ -1,6 +1,5 @@
 name,headline,location,years_experience,current_company,skills,linkedin_url,email,connections,ai_score,ai_reasoning,status,notes,job_title
-Daniel Bailey,AWS Data Engineer | Seek,Remote,14,Seek,"Airflow, Glue, AWS, Lambda, Spark",https://linkedin.com/in/reynoldsneil,barnettdanny@example.org,3334,,,New,,AWS Data Engineer
-Christian Jones,AWS Data Engineer @ Afterpay | Terraform specialist,"Adelaide, SA",1,Afterpay,"AWS, EMR, Redshift, Glue, Spark, Terraform",https://linkedin.com/in/robert59,zmartin@example.org,4904,,,New,,AWS Data Engineer
-Vanessa Lee,Principal AWS Data Engineer | Open to opportunities,"Melbourne, VIC",15,Commonwealth Bank,"Redshift, EMR, Lambda, Spark, Terraform, S3, Data Lake, Python",https://linkedin.com/in/stephaniemartinez,sarahsanchez@example.com,4925,,,New,,AWS Data Engineer
-Timothy Price,AWS Data Engineer @ Optus | AWS specialist,"Perth, WA",9,Optus,"EMR, Python, AWS, Data Lake, Glue",https://linkedin.com/in/brownscott,odonovan@example.com,4338,,,New,,AWS Data Engineer
-Robert Jackson,Principal AWS Data Engineer | Open to opportunities,"Brisbane, QLD",13,Uber,"Athena, Airflow, AWS, EMR, Terraform, Spark",https://linkedin.com/in/elizabethbarrera,tina70@example.com,4298,,,New,,AWS Data Engineer
+Jeb Penrose,Data Engineer; Systems & Quality focussed,Unknown,2,NCS Group Australia,"analytics engineering, Analytics",https://www.linkedin.com/in/jeb-penrose-12799967,,240,,,New,,AWS Data Engineer
+Sendhil Kumar,"Senior Data Engineer | Cloud Data Platforms | Databricks, Snowflake, DBT, Python, Spark, AWS, Azure ",Unknown,8,Future Fund,"REST APIs, Amazon S3",https://www.linkedin.com/in/sendhil-kumar-21ba6549,,1511,,,New,,AWS Data Engineer
+Camille Chang,AI | ML | System Engineer | DevOps Engineer | AWS Cloud Engineer,Unknown,6,Commonwealth Bank,"Communication, Continuous Delivery (CD)",https://www.linkedin.com/in/yyc-camille-chang,,827,,,New,,AWS Data Engineer
+Bhakti Mehta,Data Engineer at Maltem Australia,Unknown,5,Maltem Australia,"JavaScript, Angular 2, Tableau, Data Analysis, Pandas, Python, Scikit-Learn, MySQL, Matplotlib, HTML5",https://www.linkedin.com/in/bhakti-mehta-09,,546,,,New,,AWS Data Engineer

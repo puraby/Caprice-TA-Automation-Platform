@@ -72,22 +72,16 @@ def _fetch_from_apify(job_title: str, count: int, location: str = "") -> pd.Data
     token = os.getenv("APIFY_TOKEN")
     client = ApifyClient(token)
 
-    # Build LinkedIn people search URL
-    query = job_title.replace(" ", "%20")
-    loc = location.replace(" ", "%20") if location else ""
-    search_url = f"https://www.linkedin.com/search/results/people/?keywords={query}"
-    if loc:
-        search_url += f"&location={loc}"
-
     run_input = {
-        "query": job_title,           # general fuzzy search query
-        "jobTitles": [job_title],     # exact job title filter
-        "locations": [location] if location else [],
+        "currentJobTitles": [job_title],   # correct field per harvestapi docs
         "maxItems": count,
         "scrapeType": "short",
     }
+    if location:
+        run_input["locations"] = [location]
 
     print(f"[Apify] Starting actor run for: {job_title} ({count} results)...")
+    print(f"[Apify] run_input: {run_input}")
     run = client.actor(APIFY_ACTOR_ID).call(run_input=run_input)
 
     items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
@@ -106,35 +100,45 @@ def _map_apify_to_schema(items: list, job_title: str) -> pd.DataFrame:
         years_exp = _estimate_years_experience(item)
         skills = _extract_skills(item)
 
-        # harvestapi field names
+        # currentPosition is a LIST in harvestapi — grab first entry
+        current_position = item.get("currentPosition") or []
+        if isinstance(current_position, list) and current_position:
+            current_position = current_position[0]
+        elif not isinstance(current_position, dict):
+            current_position = {}
+
         current_company = (
+            current_position.get("companyName") or
+            current_position.get("company") or
             item.get("currentCompany") or
-            item.get("company") or
-            item.get("currentPosition", {}).get("companyName", "") or
             "Unknown"
         )
 
+        # emails is also a list
+        emails = item.get("emails") or []
+        email = emails[0] if isinstance(emails, list) and emails else ""
+
         first = item.get("firstName", "") or ""
         last = item.get("lastName", "") or ""
-        name = f"{first} {last}".strip() or item.get("fullName", "") or item.get("name", "Unknown")
+        name = f"{first} {last}".strip() or item.get("name", "Unknown")
 
-        linkedin_url = (
-            item.get("linkedInUrl") or
-            item.get("profileUrl") or
-            item.get("url") or
-            ""
-        )
+        linkedin_url = item.get("linkedinUrl") or item.get("profileUrl") or ""
+
+        # location can be a string or dict
+        location_raw = item.get("location") or ""
+        if isinstance(location_raw, dict):
+            location_raw = location_raw.get("name") or location_raw.get("city") or "Unknown"
 
         candidates.append({
             "name": name,
-            "headline": (item.get("headline") or item.get("title") or f"{job_title} Professional")[:100],
-            "location": item.get("location") or item.get("city") or "Unknown",
+            "headline": str(item.get("headline") or f"{job_title} Professional")[:100],
+            "location": str(location_raw)[:60],
             "years_experience": years_exp,
             "current_company": str(current_company)[:50],
             "skills": skills,
             "linkedin_url": linkedin_url,
-            "email": item.get("email", ""),
-            "connections": item.get("connectionsCount") or item.get("connections") or 0,
+            "email": str(email),
+            "connections": item.get("connectionsCount") or 0,
             "ai_score": None,
             "ai_reasoning": None,
             "status": "New",
@@ -146,58 +150,60 @@ def _map_apify_to_schema(items: list, job_title: str) -> pd.DataFrame:
 
 def _estimate_years_experience(item: dict) -> int:
     """Try to estimate years of experience from the profile data."""
-    experiences = item.get("experiences", [])
+    # harvestapi uses "experience" (not "experiences")
+    experiences = item.get("experience") or item.get("experiences") or []
     if not experiences:
         return random.randint(2, 8)
 
     total_months = 0
     for exp in experiences:
-        start = exp.get("startYear") or exp.get("start", {})
-        end = exp.get("endYear") or exp.get("end", {})
+        if not isinstance(exp, dict):
+            continue
+        # harvestapi date format: {"start": {"month": 1, "year": 2018}, "end": {...}}
+        start = exp.get("start") or {}
+        end = exp.get("end") or {}
 
-        start_year = None
-        end_year = None
-
-        if isinstance(start, dict):
-            start_year = start.get("year")
-        elif isinstance(start, int):
-            start_year = start
-
-        if isinstance(end, dict):
-            end_year = end.get("year")
-        elif isinstance(end, int):
-            end_year = end
+        start_year = start.get("year") if isinstance(start, dict) else None
+        end_year = end.get("year") if isinstance(end, dict) else None
 
         if start_year:
-            end_year = end_year or 2025
+            end_year = end_year or 2026
             total_months += (end_year - start_year) * 12
 
-    return max(1, round(total_months / 12))
+    return max(1, round(total_months / 12)) if total_months > 0 else random.randint(2, 8)
 
 
 def _extract_skills(item: dict) -> str:
-    """Extract skills from profile data."""
-    # Try skills field first
-    skills_raw = item.get("skills", [])
-    if skills_raw and isinstance(skills_raw, list):
-        skill_names = []
-        for s in skills_raw[:10]:
-            if isinstance(s, dict):
-                skill_names.append(s.get("name", ""))
-            elif isinstance(s, str):
-                skill_names.append(s)
-        skill_names = [s for s in skill_names if s]
-        if skill_names:
-            return ", ".join(skill_names)
+    """Extract skills from harvestapi profile data."""
+    # harvestapi provides "topSkills" and "skills" lists
+    skill_names = []
 
-    # Fall back to extracting from headline/summary
-    summary = item.get("summary", "") or item.get("headline", "") or ""
+    for field in ["topSkills", "skills"]:
+        skills_raw = item.get(field) or []
+        if isinstance(skills_raw, list):
+            for s in skills_raw[:10]:
+                if isinstance(s, dict):
+                    name = s.get("name") or s.get("title") or ""
+                elif isinstance(s, str):
+                    name = s
+                else:
+                    name = ""
+                if name:
+                    skill_names.append(name)
+        if skill_names:
+            break
+
+    if skill_names:
+        return ", ".join(skill_names[:10])
+
+    # Fallback: extract tech keywords from headline/about
+    text = str(item.get("about") or item.get("headline") or "")
     tech_keywords = [
         "Python", "Java", "AWS", "SQL", "React", "Docker", "Kubernetes",
         "Spark", "Airflow", "TensorFlow", "Node.js", "TypeScript", "Terraform",
         "Kafka", "Redshift", "PostgreSQL", "MongoDB", "Redis", "Golang",
     ]
-    found = [kw for kw in tech_keywords if kw.lower() in summary.lower()]
+    found = [kw for kw in tech_keywords if kw.lower() in text.lower()]
     return ", ".join(found) if found else "Not listed"
 
 

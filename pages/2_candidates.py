@@ -154,6 +154,10 @@ if not unscored.empty:
         progress = st.progress(0, text="Scoring candidates...")
         req_map = {r["job_title"]: r for _, r in reqs_df.iterrows()}
 
+        # Ensure columns are object dtype before setting string values
+        candidates_df["ai_score"] = candidates_df["ai_score"].astype(object)
+        candidates_df["ai_reasoning"] = candidates_df["ai_reasoning"].astype(object)
+
         for i, (idx, row) in enumerate(unscored.iterrows()):
             job_spec = req_map.get(row.get("job_title", ""), selected_req)
             result = score_candidate(row.to_dict(), job_spec)
